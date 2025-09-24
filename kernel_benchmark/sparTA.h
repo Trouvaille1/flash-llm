@@ -14,10 +14,22 @@
 #include "./sputnik_utils.h"
 #include "sputnik/sputnik.h"
 #include <cusparseLt.h>  // cusparseLt header
+#include <cassert>
+// #include "spmm_test_utils.h"
+
 
 #define SPARTA_M 2
 #define SPARTA_N 4
 
+/*
+这段代码实现了 sparTA 算法，这是一个创新的稀疏矩阵乘法方法，结合了两种不同的稀疏计算技术。让我详细解释：
+核心思想：混合稀疏计算
+sparTA 将稀疏矩阵 A 分解为两部分：
+A1：符合 2:4 结构化稀疏模式的部分 → 用 cuSPARSELt 处理
+A2：剩余的非结构化稀疏部分 → 用 Sputnik 处理
+*/
+
+//将原始稀疏矩阵 A 分解为 A1 和 A2
 void transform(half* A_h, half* A1_h, half* A2_h, int length)
 {
     // split the matrix A into A1 and A2
@@ -92,7 +104,7 @@ int sparTA(half* A_h, half* B_h, half* C_h, int m, int n, int k, float* millisec
         printf("Error in sparTA.h: line %d malloc falied\n", __LINE__);
         exit(-1);
     }
-    transform(A_h, A1_h, A2_h, m * k);
+    transform(A_h, A1_h, A2_h, m * k);  // A_h,A1_h和A2_h大小：m*k
     // check_A1_h(A1_h, m*k);
     half *A1_d, *B_d, *C_d;
     CHECK_CUDA(cudaMalloc((void**)&A1_d, m * k * sizeof(half)))
@@ -126,7 +138,7 @@ int sparTA(half* A_h, half* B_h, half* C_h, int m, int n, int k, float* millisec
                                                   &matB,
                                                   &matC,
                                                   &matC,
-                                                  CUSPARSE_COMPUTE_16F))
+                                                  CUSPARSE_COMPUTE_32F))//NOTE: hanggu.这里原来写的是CUSPARSE_COMPUTE_16F.改为CUSPARSE_COMPUTE_32F后就能通过cusparseLtMatmulAlgSelectionInit
     CHECK_CUSPARSE(cusparseLtMatmulAlgSelectionInit(&handle, &alg_sel, &matmul, CUSPARSELT_MATMUL_ALG_DEFAULT))
     CHECK_CUSPARSE(cusparseLtMatmulPlanInit(&handle, &plan, &matmul, &alg_sel))
     //--------------------------------------------------------------------------

@@ -1,0 +1,11 @@
+CompileFlags:
+  Add: [
+    "-x", "cuda",
+    "-D__CUDACC__",
+    "-I/usr/local/cuda-12.6/targets/aarch64-linux/include",
+    "-I/home/hanggu/USTC/edge_llm/flash-llm",
+    "-I/home/hanggu/USTC/edge_llm/flash-llm/third_party",
+    "-I/home/hanggu/USTC/edge_llm/flash-llm/third_party/sputnik",
+    "-I/home/hanggu/USTC/edge_llm/flash-llm/kernel_benchmark",
+    "-I/home/hanggu/USTC/edge_llm/flash-llm/build",
+  ]

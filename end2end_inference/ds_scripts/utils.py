@@ -109,7 +109,8 @@ class DSPipeline():
             if torch.is_tensor(input_tokens[t]):
                 input_tokens[t] = input_tokens[t].to(self.device)
 
-        self.model.cuda().to(self.device)
+        # self.model.cuda().to(self.device)
+        self.model.cuda().to(self.device).to(self.dtype) # hanggu. OPT-125m需要to(self.dtype)
 
         outputs = self.model.generate(**input_tokens, **generate_kwargs)
         outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)

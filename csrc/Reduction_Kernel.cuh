@@ -19,27 +19,27 @@
 // Each GPU: 108 SM -> 108 warp -> 108*256 = 27648
 // GridSize = (M_Global*N_Global) / 256
 
-#define ELEMENT_PER_THREADBLOCK 256
+#define ELEMENT_PER_THREADBLOCK 256 // 每个线程块处理的元素数量
 
-__global__ void SplitK_Reduction(half* C, half* Reduction_Workspace, int M_Global, int N_Global, int Split_K)
+__global__ void SplitK_Reduction(half* C, half* Reduction_Workspace, int M_Global, int N_Global, int Split_K) // SplitK归约的全局函数，将多个部分结果合并
 {
     // return;
-    half* C_BasePTR_ThisBlock = C + ELEMENT_PER_THREADBLOCK * blockIdx.x;
-    half* R_BasePTR_ThisBlock = Reduction_Workspace + ELEMENT_PER_THREADBLOCK * blockIdx.x;
+    half* C_BasePTR_ThisBlock = C + ELEMENT_PER_THREADBLOCK * blockIdx.x; // 计算当前线程块在最终输出矩阵C中的基地址
+    half* R_BasePTR_ThisBlock = Reduction_Workspace + ELEMENT_PER_THREADBLOCK * blockIdx.x; // 计算当前线程块在归约工作空间中的基地址
     //
-    float Results[HALF_PER_128B];
+    float Results[HALF_PER_128B]; // 用于累积的float类型数组，大小为HALF_PER_128B
 //
 #pragma unroll
-    for (int j = 0; j < HALF_PER_128B; j++)
-        Results[j] = 0.0f;
+    for (int j = 0; j < HALF_PER_128B; j++) // 遍历每个线程处理的元素
+        Results[j] = 0.0f; // 初始化累积结果为0
     //
-    for (int i = 0; i < Split_K; i++) {
+    for (int i = 0; i < Split_K; i++) { // 遍历所有SplitK的部分结果
 #pragma unroll
-        for (int j = 0; j < HALF_PER_128B; j++)
-            Results[j] += __half2float(R_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j]);
-        R_BasePTR_ThisBlock += M_Global * N_Global;
+        for (int j = 0; j < HALF_PER_128B; j++) // 遍历每个线程处理的元素
+            Results[j] += __half2float(R_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j]); // 将half精度转换为float并累加到结果中
+        R_BasePTR_ThisBlock += M_Global * N_Global; // 移动到下一个SplitK部分结果的位置
     }
 #pragma unroll
-    for (int j = 0; j < HALF_PER_128B; j++)
-        C_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j] = __float2half_rn(Results[j]);
+    for (int j = 0; j < HALF_PER_128B; j++) // 遍历每个线程处理的元素
+        C_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j] = __float2half_rn(Results[j]); // 将float结果转换为half精度并写入最终输出矩阵C
 }

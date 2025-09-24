@@ -100,6 +100,7 @@ void checkLastCudaError(int line)
     }
 }
 
+// A是稀疏矩阵，B是稠密矩阵
 __host__ void
 init_host_matrices(half* a, half* b, int M_GLOBAL, int K_GLOBAL, int N_GLOBAL, int MATRIX_A_PRUNING_PERCENTAGE)
 {

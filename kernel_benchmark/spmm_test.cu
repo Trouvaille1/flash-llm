@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 {
     if (argc != 6) {
         printf("Wrong Inputs! Correct input format: ./spmm_test M K N Sparsity SplitK\n");
-        return;
+        return -1;
     }
     int M_GLOBAL                    = atoi(argv[1]);
     int K_GLOBAL                    = atoi(argv[2]);
@@ -87,7 +87,8 @@ int main(int argc, char** argv)
         exit(-1);
     }
     //
-    init_host_matrices(A_h, B_h, M_GLOBAL, K_GLOBAL, N_GLOBAL, MATRIX_A_PRUNING_PERCENTAGE);
+    init_host_matrices(
+        A_h, B_h, M_GLOBAL, K_GLOBAL, N_GLOBAL, MATRIX_A_PRUNING_PERCENTAGE);  // A是稀疏矩阵，B是稠密矩阵
     for (int i = 0; i < K_GLOBAL; i++)
         for (int j = 0; j < N_GLOBAL; j++)
             B_Transposed_h[i * N_GLOBAL + j] = B_h[i + j * K_GLOBAL];
@@ -97,7 +98,7 @@ int main(int argc, char** argv)
     cudaMemcpy(B, B_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     cudaMemcpy(B_Transposed, B_Transposed_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     checkLastCudaError(__LINE__);
-    //#ifdef USE_CUBLAS
+#ifdef USE_CUBLAS
     /////////////////////////////////////////////////////////////////////////////////////////////////
     printf("Launching CuBlas...\n");
     half* D_cublas = NULL;
@@ -225,6 +226,8 @@ int main(int argc, char** argv)
     float tflops_cublas_tc = static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2)
                                                  / (milliseconds_cublas_tc / 1000.))
                              / 1e12;
+#endif
+
     half* D_cublas_h = NULL;  // col major
     D_cublas_h       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
     if (D_cublas_h == NULL) {
@@ -234,7 +237,7 @@ int main(int argc, char** argv)
     cudaMemcpy(D_cublas_h, D_cublas, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
     cudaFree(D_cublas);
     /////////////////////////////////////////////////////////////////////////////////////////////////
-//#endif
+
 #ifdef USE_FLASH_LLM
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // SpMM_WithSplitK
@@ -246,12 +249,14 @@ int main(int argc, char** argv)
         exit(-1);
     }
     cudaMemset(D_SpMM, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
+    // Host数据
     uint32_t* NZWeights_CPU   = NULL;
     int*      TileOffsets_CPU = NULL;
     int       NumOffsets = InitSparseMatrixA_API(A_h, M_GLOBAL, N_GLOBAL, K_GLOBAL, &NZWeights_CPU, &TileOffsets_CPU);
-    int       NNZ        = TileOffsets_CPU[NumOffsets - 1] * 4;  // VectorSize = 4
+    int       NNZ = TileOffsets_CPU[NumOffsets - 1] * 4;  // VectorSize = 4。NumOffsets-1为TileOffsets_CPU数组长度
     // printf("NumOffsets: %d, NNZ: %d\n", NumOffsets, NNZ);
     //
+    // Device数据
     uint32_t* NZWeights_GPU   = NULL;
     int*      TileOffsets_GPU = NULL;
     cudaMalloc(&TileOffsets_GPU, sizeof(int) * NumOffsets);
@@ -282,7 +287,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < WARM_UP_ITERATION; i++)
         SpMM_SplitK_API(0,
                         A,
-                        reinterpret_cast<uint4*>(NZWeights_GPU),
+                        reinterpret_cast<uint4*>(NZWeights_GPU),  //将uint32_t数组转换为uint4数组进行向量化访问
                         TileOffsets_GPU,
                         B,
                         D_SpMM,
@@ -363,6 +368,7 @@ int main(int argc, char** argv)
     }
     //
     for (int i = 0; i < WARM_UP_ITERATION; i++)
+        // A,B,D_SpMM2都是GPU内存
         SpMM_SplitK_API(0,
                         A,
                         reinterpret_cast<uint4*>(NZWeights_GPU),
@@ -752,7 +758,7 @@ int main(int argc, char** argv)
     printf("Launching sparTA...\n");
     //
     float milliseconds_sparTA  = 0;
-    half* D_sparTA_h_row_major = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
+    half* D_sparTA_h_row_major = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);  // D:M*N
     if (D_sparTA_h_row_major == NULL) {
         printf("Error in spmm_test.cu: line %d Malloc falied\n", __LINE__);
         exit(-1);
